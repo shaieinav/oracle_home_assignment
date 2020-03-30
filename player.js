@@ -6,6 +6,12 @@ function __5szm2kaj(data) {
   const steps        = data.data.structure.steps;   // Steps data
   const styles       = data.data.css;               // CSS data
   const stepsMap     = {}                           // Object to save all of the steps with their ID as key
+  const prevStack    = [];                          // Array to be used as a stack to keep track for previous step ID
+  const lastStep     = 'eol0';                      // ID of last step
+
+  let currentStepId;
+  let prevStepId;
+  let nextStepId;
 
   // Inject the css from the API endpoint to the head of the HTML page
   const css = document.createElement('style');
@@ -14,24 +20,59 @@ function __5szm2kaj(data) {
   document.getElementsByTagName("head")[0].appendChild(css);
 
   // Create the steps map, with step id as key and step itself as value
-  steps.forEach((item, i) => {
-    stepsMap[item.id] = item;
+  steps.forEach((step) => {
+    // if not assigned yet, mark first step as the current step ID
+    if (!currentStepId) { currentStepId = step.id; }
+    stepsMap[step.id] = step;
   });
 
-  // At the beginning display the first tip (default is id = "1")
-  changeTip(htmlTip, currentStepId, stepsMap, 0, 0);
+  // Insert to the exit button in the header click fuctionalty
+  $( "#viewport" ).on("click", "button[data-iridize-role='closeBt']", function() {
+    // remove the tip div from the page
+    $( "div[role='region']" ).remove();
+  });
+
+  // Insert to the previous button in the footer click fuctionalty
+  $( "#viewport" ).on("click", ".prev-btn", function() {
+
+    prevStepId = prevStack.pop();
+
+    if (prevStepId !== undefined) {
+      currentStepId = prevStepId;
+      displayTip(htmlTip, prevStepId, stepsMap, lastStep);
+    }
+  });
+
+  // Insert to the next button in the footer click fuctionalty
+  $( "#viewport" ).on("click", ".next-btn", function() {
+
+    nextStepId = stepsMap[currentStepId].followers[0]['next'];
+
+    if (nextStepId !== lastStep) {
+      prevStack.push(currentStepId);
+      currentStepId = nextStepId;
+      displayTip(htmlTip, nextStepId, stepsMap, lastStep);
+    }
+  });
+
+  // At the beginning display the first tip (default is the first id found by stepsMap)
+  displayTip(htmlTip, currentStepId, stepsMap, lastStep);
 }
 
 // Function to add a tip to the web page, using the tip HTML, and according
 // to the current step ID selector location.
-function changeTip(html, stepId, steps, direction, prevId) {
+function displayTip(htmlTip, currentStepId, stepsMap, lastStep) {
 
-  let currStepObj = steps[stepId];
+  // remove the previous tip div from the page
+  $( "div[role='region']" ).remove();
+
+  // Find the current step selector and content
+  let currStepObj = stepsMap[currentStepId];
   let selector    = currStepObj.action.selector;
   let content     = currStepObj.action.contents['#content'];
 
   // Add the tip HTML after the selector specified loacation
-  $( selector + ':last' ).after(html);
+  $( selector + ':last' ).after(htmlTip);
   // Add step content into the contant div
   $( "div[data-iridize-id='content']" ).append( content );
 }
@@ -49,8 +90,5 @@ function loadData() {
   jsFileScript.src = "https://guidedlearning.oracle.com/player/latest/api/scenario/get/v_IlPvRLRWObwLnV5sTOaw/5szm2kaj/?callback=__5szm2kaj&amp;refresh=true&amp;env=dev&amp;type=startPanel&amp;vars%5Btype%5D=startPanel&amp;sid=none&amp;_=1582203987867";
   document.body.appendChild(jsFileScript);
 }
-
-// Global variable to track the current step we are at
-let currentStepId = "1";
 
 loadData();
