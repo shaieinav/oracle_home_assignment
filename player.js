@@ -1,23 +1,71 @@
-// Function to use the data from the callback
-function __5szm2kaj(data) {
+function loadData() {
+  loadScriptFromUrl("https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js");
+  loadScriptFromUrl("https://guidedlearning.oracle.com/player/latest/api/scenario/get/v_IlPvRLRWObwLnV5sTOaw/5szm2kaj/?callback=__5szm2kaj&amp;refresh=true&amp;env=dev&amp;type=startPanel&amp;vars%5Btype%5D=startPanel&amp;sid=none&amp;_=1582203987867");
+}
 
-  const htmlTip      = data.data.tiplates.tip;      // HTML tip data
-  const htmlHoverTip = data.data.tiplates.hoverTip; // HTML hover tip data
-  const steps        = data.data.structure.steps;   // Steps data
-  const styles       = data.data.css;               // CSS data
-  const stepsMap     = {}                           // Object to save all of the steps with their ID as key
-  const prevStack    = [];                          // Array to be used as a stack to keep track for previous step ID
-  const lastStep     = 'eol0';                      // ID of last step
+function loadScriptFromUrl(url) {
+  var jQueryScript = document.createElement("script");
+  jQueryScript.src = url;
+  document.body.appendChild(jQueryScript);
+}
 
-  let currentStepId;
-  let prevStepId;
-  let nextStepId;
+function cleanBreakLines(str) {
+  str = str.replace("\n", "");
+  str = str.replace("\t", "");
+  str = str.replace("\r", "");
+  return str;
+}
 
-  // Inject the css from the API endpoint to the head of the HTML page
-  const css = document.createElement('style');
+function injectCss(styles) {
+  let css  = document.createElement('style');
   css.type = 'text/css';
   css.appendChild(document.createTextNode(styles));
   document.getElementsByTagName("head")[0].appendChild(css);
+}
+
+function clearTips()
+{ $( ".sttip" ).remove(); }
+
+function updateStepIds(stepsMap, op, prevStack) {
+  if (op == "prev") {
+    prevStepId = prevStack.pop();
+    if (prevStepId !== undefined) { currentStepId = prevStepId; }
+  }
+  else if (op == "next") {
+    nextStepId = stepsMap[currentStepId].followers[0]['next'];
+    if (nextStepId !== "eol0") {
+      prevStack.push(currentStepId);
+      currentStepId = nextStepId;
+    }
+  }
+}
+
+function addButtonsFunctionality(stepsMap, tipTemplate, prevStack) {
+  // Insert to the exit button in the header click fuctionalty
+  $( "#viewport" ).on("click", "button[aria-label='Close']", function() { clearTips(); } );
+  // Insert to the previous button in the footer click fuctionalty
+  $( "#viewport" ).on("click", ".prev-btn", function() {
+    clearTips(); // remove the previous tip div
+    updateStepIds(stepsMap, "prev", prevStack);
+    displayTips(stepsMap, tipTemplate);
+  });
+  // Insert to the next button in the footer click fuctionalty
+  $( "#viewport" ).on("click", ".next-btn", function() {
+    clearTips(); // remove the previous tip div
+    updateStepIds(stepsMap, "next", prevStack);
+    displayTips(stepsMap, tipTemplate);
+  });
+}
+
+// Function to use the data from the callback
+function __5szm2kaj(data) {
+  const css   = data.data.css;
+  const steps = data.data.structure.steps;
+
+  const tipTemplate = data.data.tiplates.tip;
+  const hoverTipTemplate = data.data.tiplates.hoverTip;
+  const stepsMap  = {}; // a map between steps ids and steps
+  const prevStack = []; // stack for keeping track after previous steps
 
   // Create the steps map, with step id as key and step itself as value
   steps.forEach((step) => {
@@ -26,69 +74,32 @@ function __5szm2kaj(data) {
     stepsMap[step.id] = step;
   });
 
-  // Insert to the exit button in the header click fuctionalty
-  $( "#viewport" ).on("click", "button[data-iridize-role='closeBt']", function() {
-    // remove the tip div from the page
-    $( "div[role='region']" ).remove();
-  });
-
-  // Insert to the previous button in the footer click fuctionalty
-  $( "#viewport" ).on("click", ".prev-btn", function() {
-
-    prevStepId = prevStack.pop();
-
-    if (prevStepId !== undefined) {
-      currentStepId = prevStepId;
-      displayTip(htmlTip, prevStepId, stepsMap, lastStep);
-    }
-  });
-
-  // Insert to the next button in the footer click fuctionalty
-  $( "#viewport" ).on("click", ".next-btn", function() {
-
-    nextStepId = stepsMap[currentStepId].followers[0]['next'];
-
-    if (nextStepId !== lastStep) {
-      prevStack.push(currentStepId);
-      currentStepId = nextStepId;
-      displayTip(htmlTip, nextStepId, stepsMap, lastStep);
-    }
-  });
-
-  // At the beginning display the first tip (default is the first id found by stepsMap)
-  displayTip(htmlTip, currentStepId, stepsMap, lastStep);
+  injectCss(cleanBreakLines(css));
+  addButtonsFunctionality(stepsMap, tipTemplate, prevStack);
+  displayTips(stepsMap, tipTemplate);
 }
 
 // Function to add a tip to the web page, using the tip HTML, and according
 // to the current step ID selector location.
-function displayTip(htmlTip, currentStepId, stepsMap, lastStep) {
-
-  // remove the previous tip div from the page
-  $( "div[role='region']" ).remove();
-
-  // Find the current step selector and content
-  let currStepObj = stepsMap[currentStepId];
-  let selector    = currStepObj.action.selector;
-  let content     = currStepObj.action.contents['#content'];
-
-  // Add the tip HTML after the selector specified loacation
-  $( selector + ':last' ).after(htmlTip);
-  // Add step content into the contant div
-  $( "div[data-iridize-id='content']" ).append( content );
+function displayTips(stepsMap, tipTemplate) {
+  let tipHtml = tipTemplate;
+  let currStep = stepsMap[currentStepId];
+  let elem = $(currStep.action.selector);
+  addTip(elem, tipHtml);
 }
 
-// Function to load the data from the API endpoint
-function loadData() {
-
-  // Add script tag to the body of the html page for using JQuery
-  const jQueryScript = document.createElement("script");
-  jQueryScript.src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js";
-  document.body.appendChild(jQueryScript);
-
-  // Add script tag to the body of the html page for calling the callback function
-  const jsFileScript = document.createElement("script");
-  jsFileScript.src = "https://guidedlearning.oracle.com/player/latest/api/scenario/get/v_IlPvRLRWObwLnV5sTOaw/5szm2kaj/?callback=__5szm2kaj&amp;refresh=true&amp;env=dev&amp;type=startPanel&amp;vars%5Btype%5D=startPanel&amp;sid=none&amp;_=1582203987867";
-  document.body.appendChild(jsFileScript);
+function addTip(element, tipTemplate) {
+  tipHtml = '<div class="sttip" style="z-index:1000; position:relative;">' +
+  '<div class="tooltip">' +
+  '<div class="panel-container">' +
+   tipTemplate +
+   '</div></div></div>';
+  element.after(tipHtml);
 }
+
+// NOTE: need to find a solution for global variables
+let currentStepId;
+let prevStepId;
+let nextStepId;
 
 loadData();
